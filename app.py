@@ -27,6 +27,10 @@ def load_data_from_google_sheet(sheet_name="battlescape"):
         worksheet = spreadsheet.sheet1
         records = worksheet.get_all_records()
         df = pd.DataFrame(records)
+        # Ensure numeric columns are the correct type
+        df['Year'] = pd.to_numeric(df['Year'])
+        df['Latitude'] = pd.to_numeric(df['Latitude'])
+        df['Longitude'] = pd.to_numeric(df['Longitude'])
         return df
         
     except gspread.exceptions.SpreadsheetNotFound:
@@ -64,10 +68,7 @@ selected_tour = st.sidebar.selectbox(
 # Update session state if tour selection changes
 if selected_tour != st.session_state.selected_tour:
     st.session_state.selected_tour = selected_tour
-    if selected_tour == "None":
-        st.session_state.tour_active = False
-    else:
-        st.session_state.tour_active = True
+    st.session_state.tour_active = (selected_tour != "None")
     st.session_state.tour_step = 0 # Reset step on new tour selection
 
 st.sidebar.markdown("---")
@@ -93,16 +94,19 @@ selected_years = st.sidebar.slider(
     disabled=is_tour_active
 )
 
-# --- Data Filtering Logic ---
+# --- Data Filtering and Tour Logic ---
+current_battle_id = None
 if st.session_state.tour_active:
-    # Guided Tour Logic
-    tour_df = df[df['War'] == st.session_state.selected_tour].sort_values(by='Year').reset_index()
+    # For a tour, the filtered data includes all battles of that war
+    tour_df = df[df['War'] == st.session_state.selected_tour].sort_values(by='Year').reset_index(drop=True)
+    filtered_df = tour_df
     
     st.sidebar.markdown("---")
     st.sidebar.header("Tour Controls")
     
     num_battles = len(tour_df)
     current_battle = tour_df.iloc[st.session_state.tour_step]
+    current_battle_id = current_battle['Battle'] # Get the name of the current battle for highlighting
     
     st.sidebar.subheader(f"Step {st.session_state.tour_step + 1} of {num_battles}")
     st.sidebar.markdown(f"**{current_battle['Battle']} ({current_battle['Year']})**")
@@ -112,13 +116,13 @@ if st.session_state.tour_active:
     if col1.button("Previous", use_container_width=True):
         if st.session_state.tour_step > 0:
             st.session_state.tour_step -= 1
+            st.experimental_rerun()
     
     if col2.button("Next", use_container_width=True):
         if st.session_state.tour_step < num_battles - 1:
             st.session_state.tour_step += 1
+            st.experimental_rerun()
             
-    filtered_df = pd.DataFrame([current_battle]) # Map shows only the current battle
-    
 else:
     # Standard Filter Logic
     if selected_war == 'All Wars':
@@ -139,10 +143,7 @@ default_icon = 'crosshairs'
 
 if not filtered_df.empty:
     map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
-    if st.session_state.tour_active:
-        zoom_start = 7 # Zoom in close for tour steps
-    else:
-        zoom_start = 5 if len(filtered_df['War'].unique()) == 1 and selected_war != 'All Wars' else 2
+    zoom_start = 5 if len(filtered_df['War'].unique()) == 1 else 2
 else:
     map_center = [20, 0]
     zoom_start = 2
@@ -154,6 +155,9 @@ m = folium.Map(location=map_center, zoom_start=zoom_start, tiles='CartoDB Positr
 if not filtered_df.empty:
     for index, row in filtered_df.iterrows():
         icon_name = icon_map.get(row['Battle_Type'], default_icon)
+        
+        # Determine icon color: green for current tour step, red for others
+        icon_color = 'green' if row['Battle'] == current_battle_id else 'darkred'
         
         popup_html = f"""
         <div style="width: 250px; font-size: 13px;">
@@ -176,9 +180,9 @@ if not filtered_df.empty:
             location=[row['Latitude'], row['Longitude']],
             popup=folium.Popup(popup_html, max_width=270),
             tooltip=tooltip_text,
-            icon=folium.Icon(color='darkred', icon=icon_name, prefix='fa')
+            icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa')
         ).add_to(m)
 
-# Use a dynamic key for st_folium to force re-render when the map center changes
-map_key = f"{map_center[0]}-{map_center[1]}"
+# Use a key that changes only when the tour selection changes, for better stability
+map_key = st.session_state.selected_tour
 st_folium(m, key=map_key, width=1200, height=800)
