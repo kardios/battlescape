@@ -51,38 +51,25 @@ if 'tour_active' not in st.session_state:
     st.session_state.tour_active = False
 if 'tour_step' not in st.session_state:
     st.session_state.tour_step = 0
-if 'selected_tour' not in st.session_state:
-    st.session_state.selected_tour = "None"
+if 'selected_war' not in st.session_state:
+    st.session_state.selected_war = "All Wars"
+
 
 # --- Sidebar UI ---
-st.sidebar.header("Explore Battles")
-
-# Guided Tour Selector
-tour_options = ["None"] + sorted(df['War'].unique())
-selected_tour = st.sidebar.selectbox(
-    'Select a Guided Tour:', 
-    tour_options, 
-    index=tour_options.index(st.session_state.selected_tour)
-)
-
-# Update session state if tour selection changes
-if selected_tour != st.session_state.selected_tour:
-    st.session_state.selected_tour = selected_tour
-    st.session_state.tour_active = (selected_tour != "None")
-    st.session_state.tour_step = 0 # Reset step on new tour selection
-
-st.sidebar.markdown("---")
-
-# Standard Filters (disabled if a tour is active)
 st.sidebar.header("Filter Battles")
-is_tour_active = st.session_state.tour_active
 
 war_list = ['All Wars'] + sorted(df['War'].unique())
 selected_war = st.sidebar.selectbox(
     'Select a War:', 
-    war_list, 
-    disabled=is_tour_active
+    war_list,
+    index=war_list.index(st.session_state.selected_war) # Persist selection across reruns
 )
+
+# If selection changes, reset the tour state
+if selected_war != st.session_state.selected_war:
+    st.session_state.selected_war = selected_war
+    st.session_state.tour_active = False
+    st.session_state.tour_step = 0
 
 min_year = int(df['Year'].min())
 max_year = int(df['Year'].max())
@@ -91,44 +78,54 @@ selected_years = st.sidebar.slider(
     min_value=min_year,
     max_value=max_year,
     value=(min_year, max_year),
-    disabled=is_tour_active
+    disabled=st.session_state.tour_active # Disable slider during tour
 )
 
-# --- Data Filtering and Tour Logic ---
+# --- Tour Activation and Controls ---
+st.sidebar.markdown("---")
+if st.session_state.selected_war != "All Wars":
+    if not st.session_state.tour_active:
+        if st.sidebar.button("Start Guided Tour", use_container_width=True):
+            st.session_state.tour_active = True
+            st.session_state.tour_step = 0
+            st.rerun()
+    else: # If tour is active, show controls
+        tour_df = df[df['War'] == st.session_state.selected_war].sort_values(by='Year').reset_index(drop=True)
+        num_battles = len(tour_df)
+        current_battle = tour_df.iloc[st.session_state.tour_step]
+        
+        st.sidebar.header("Tour Controls")
+        st.sidebar.subheader(f"Step {st.session_state.tour_step + 1} of {num_battles}")
+        st.sidebar.markdown(f"**{current_battle['Battle']} ({current_battle['Year']})**")
+        st.sidebar.caption(current_battle['Description'])
+
+        col1, col2 = st.sidebar.columns(2)
+        if col1.button("Previous", use_container_width=True):
+            if st.session_state.tour_step > 0:
+                st.session_state.tour_step -= 1
+                st.rerun()
+        
+        if col2.button("Next", use_container_width=True):
+            if st.session_state.tour_step < num_battles - 1:
+                st.session_state.tour_step += 1
+                st.rerun()
+        
+        if st.sidebar.button("Stop Tour", use_container_width=True):
+            st.session_state.tour_active = False
+            st.session_state.tour_step = 0
+            st.rerun()
+
+
+# --- Data Filtering Logic ---
 current_battle_id = None
 if st.session_state.tour_active:
-    # For a tour, the filtered data includes all battles of that war
-    tour_df = df[df['War'] == st.session_state.selected_tour].sort_values(by='Year').reset_index(drop=True)
-    filtered_df = tour_df
-    
-    st.sidebar.markdown("---")
-    st.sidebar.header("Tour Controls")
-    
-    num_battles = len(tour_df)
-    current_battle = tour_df.iloc[st.session_state.tour_step]
-    current_battle_id = current_battle['Battle'] # Get the name of the current battle for highlighting
-    
-    st.sidebar.subheader(f"Step {st.session_state.tour_step + 1} of {num_battles}")
-    st.sidebar.markdown(f"**{current_battle['Battle']} ({current_battle['Year']})**")
-    st.sidebar.caption(current_battle['Description'])
-
-    col1, col2 = st.sidebar.columns(2)
-    if col1.button("Previous", use_container_width=True):
-        if st.session_state.tour_step > 0:
-            st.session_state.tour_step -= 1
-            st.experimental_rerun()
-    
-    if col2.button("Next", use_container_width=True):
-        if st.session_state.tour_step < num_battles - 1:
-            st.session_state.tour_step += 1
-            st.experimental_rerun()
-            
+    filtered_df = df[df['War'] == st.session_state.selected_war].sort_values(by='Year').reset_index(drop=True)
+    current_battle_id = filtered_df.iloc[st.session_state.tour_step]['Battle']
 else:
-    # Standard Filter Logic
-    if selected_war == 'All Wars':
+    if st.session_state.selected_war == 'All Wars':
         filtered_df = df
     else:
-        filtered_df = df[df['War'] == selected_war]
+        filtered_df = df[df['War'] == st.session_state.selected_war]
     
     filtered_df = filtered_df[
         (filtered_df['Year'] >= selected_years[0]) & (filtered_df['Year'] <= selected_years[1])
@@ -155,8 +152,6 @@ m = folium.Map(location=map_center, zoom_start=zoom_start, tiles='CartoDB Positr
 if not filtered_df.empty:
     for index, row in filtered_df.iterrows():
         icon_name = icon_map.get(row['Battle_Type'], default_icon)
-        
-        # Determine icon color: green for current tour step, red for others
         icon_color = 'green' if row['Battle'] == current_battle_id else 'darkred'
         
         popup_html = f"""
@@ -183,6 +178,5 @@ if not filtered_df.empty:
             icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa')
         ).add_to(m)
 
-# Use a key that changes only when the tour selection changes, for better stability
-map_key = st.session_state.selected_tour
+map_key = f"{st.session_state.selected_war}-{st.session_state.tour_active}-{st.session_state.tour_step}"
 st_folium(m, key=map_key, width=1200, height=800)
