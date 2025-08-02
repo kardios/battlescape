@@ -61,15 +61,31 @@ df = pd.read_csv(io.StringIO(battle_data))
 # --- Sidebar for Filters ---
 st.sidebar.header("Filter Battles")
 
-# Get unique wars and add an 'All Wars' option
+# War filter
 war_list = ['All Wars'] + sorted(df['War'].unique())
 selected_war = st.sidebar.selectbox('Select a War:', war_list)
 
-# Filter the dataframe based on selection
+# Year filter
+min_year = int(df['Year'].min())
+max_year = int(df['Year'].max())
+selected_years = st.sidebar.slider(
+    'Select a Year Range:',
+    min_value=min_year,
+    max_value=max_year,
+    value=(min_year, max_year)
+)
+
+# --- Data Filtering ---
+# Filter by war
 if selected_war == 'All Wars':
     filtered_df = df
 else:
     filtered_df = df[df['War'] == selected_war]
+
+# Filter by year range
+filtered_df = filtered_df[
+    (filtered_df['Year'] >= selected_years[0]) & (filtered_df['Year'] <= selected_years[1])
+]
 
 
 # --- Map Creation ---
@@ -78,33 +94,36 @@ else:
 # The map is centered to be more dynamic based on the filtered data
 if not filtered_df.empty:
     map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
-    zoom_start = 2 if selected_war == 'All Wars' else 5 # Zoom in more for specific wars
+    # Adjust zoom based on how many unique wars are in the filtered set
+    zoom_start = 5 if len(filtered_df['War'].unique()) == 1 and selected_war != 'All Wars' else 2
 else:
     map_center = [20, 0]
     zoom_start = 2
+    st.warning("No battles found for the selected filters.")
 
 m = folium.Map(location=map_center, zoom_start=zoom_start, tiles='CartoDB Positron')
 
 # Add markers for each battle in the filtered dataframe
-for index, row in filtered_df.iterrows():
-    # Create the popup text
-    popup_text = f"""
-    <b>Battle:</b> {row['Battle']}<br>
-    <b>Date:</b> {row['Year']}<br>
-    <b>War:</b> {row['War']}<br>
-    <b>Participants:</b> {row['Participants']}
-    """
-    
-    # Create the tooltip text
-    tooltip_text = f"{row['Battle']} ({row['Year']})"
+if not filtered_df.empty:
+    for index, row in filtered_df.iterrows():
+        # Create the popup text
+        popup_text = f"""
+        <b>Battle:</b> {row['Battle']}<br>
+        <b>Date:</b> {row['Year']}<br>
+        <b>War:</b> {row['War']}<br>
+        <b>Participants:</b> {row['Participants']}
+        """
+        
+        # Create the tooltip text
+        tooltip_text = f"{row['Battle']} ({row['Year']})"
 
-    # Add the marker to the map with a custom icon
-    folium.Marker(
-        location=[row['Latitude'], row['Longitude']],
-        popup=folium.Popup(popup_text, max_width=300),
-        tooltip=tooltip_text,
-        icon=folium.Icon(color='darkred', icon='crosshairs', prefix='fa')
-    ).add_to(m)
+        # Add the marker to the map with a custom icon
+        folium.Marker(
+            location=[row['Latitude'], row['Longitude']],
+            popup=folium.Popup(popup_text, max_width=300),
+            tooltip=tooltip_text,
+            icon=folium.Icon(color='darkred', icon='crosshairs', prefix='fa')
+        ).add_to(m)
 
 # Display the map in the Streamlit app
 st_data = st_folium(m, width=1200, height=800)
