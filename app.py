@@ -139,8 +139,14 @@ icon_map = {
 default_icon = 'crosshairs'
 
 if not filtered_df.empty:
-    map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
-    zoom_start = 5 if len(filtered_df['War'].unique()) == 1 else 2
+    # *** FIX: Center map on the current battle during a tour ***
+    if st.session_state.tour_active:
+        current_battle_row = filtered_df.iloc[st.session_state.tour_step]
+        map_center = [current_battle_row['Latitude'], current_battle_row['Longitude']]
+        zoom_start = 7 # Zoom in close for tour steps
+    else:
+        map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
+        zoom_start = 5 if len(filtered_df['War'].unique()) == 1 else 2
 else:
     map_center = [20, 0]
     zoom_start = 2
