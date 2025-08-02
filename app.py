@@ -48,7 +48,7 @@ df = pd.read_csv(io.StringIO(battle_data))
 
 # Create the map
 # You can adjust the location and zoom_start to your preference
-m = folium.Map(location=[45, 10], zoom_start=2) # Zoomed out slightly to see all points
+m = folium.Map(location=[45, 10], zoom_start=2, tiles='Stamen Toner')
 
 # Add markers for each battle
 for index, row in df.iterrows():
