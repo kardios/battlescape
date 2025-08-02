@@ -97,7 +97,7 @@ if not filtered_df.empty:
         # Build the rich HTML for the popup, now with more compact styling
         popup_html = f"""
         <div style="width: 250px; font-size: 13px;">
-            <h4 style="margin-bottom:5px; font-weight:bold;">{row['Battle']} ({row['Year']})</h4>
+            <h4 style="margin-bottom:5px; font-weight:bold; font-size: 14px;">{row['Battle']} ({row['Year']})</h4>
             <p style="margin:2px 0;"><strong>War:</strong> {row['War']}</p>
             <p style="margin:2px 0;"><strong>Type:</strong> {row['Battle_Type']}</p>
             <hr style="margin:5px 0;">
