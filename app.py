@@ -46,9 +46,9 @@ Battle of Nagashino,1575,34.97,137.69,Sengoku period,"Oda-Tokugawa alliance, Tak
 df = pd.read_csv(io.StringIO(battle_data))
 
 
-# Create the map
-# You can adjust the location and zoom_start to your preference
-m = folium.Map(location=[45, 10], zoom_start=2, tiles='Stamen Toner')
+# Create the map using the 'CartoDB Positron' tile layer
+# This is a high-contrast, black-and-white style that works well.
+m = folium.Map(location=[45, 10], zoom_start=2, tiles='CartoDB Positron')
 
 # Add markers for each battle
 for index, row in df.iterrows():
