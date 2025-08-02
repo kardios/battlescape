@@ -58,13 +58,35 @@ Castle Hill Rebellion,1804,-33.74,150.96,Australian colonial history,"Irish conv
 # Read the string data into a pandas DataFrame
 df = pd.read_csv(io.StringIO(battle_data))
 
+# --- Sidebar for Filters ---
+st.sidebar.header("Filter Battles")
+
+# Get unique wars and add an 'All Wars' option
+war_list = ['All Wars'] + sorted(df['War'].unique())
+selected_war = st.sidebar.selectbox('Select a War:', war_list)
+
+# Filter the dataframe based on selection
+if selected_war == 'All Wars':
+    filtered_df = df
+else:
+    filtered_df = df[df['War'] == selected_war]
+
+
+# --- Map Creation ---
 
 # Create the map using the 'CartoDB Positron' tile layer
-# This is a high-contrast, black-and-white style that works well.
-m = folium.Map(location=[45, 10], zoom_start=2, tiles='CartoDB Positron')
+# The map is centered to be more dynamic based on the filtered data
+if not filtered_df.empty:
+    map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
+    zoom_start = 2 if selected_war == 'All Wars' else 5 # Zoom in more for specific wars
+else:
+    map_center = [20, 0]
+    zoom_start = 2
 
-# Add markers for each battle
-for index, row in df.iterrows():
+m = folium.Map(location=map_center, zoom_start=zoom_start, tiles='CartoDB Positron')
+
+# Add markers for each battle in the filtered dataframe
+for index, row in filtered_df.iterrows():
     # Create the popup text
     popup_text = f"""
     <b>Battle:</b> {row['Battle']}<br>
