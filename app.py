@@ -140,15 +140,8 @@ default_icon = 'crosshairs'
 
 # Determine the correct map center and zoom BEFORE creating the map object
 if not filtered_df.empty:
-    if st.session_state.tour_active:
-        # If tour is active, center on the current battle
-        current_battle_row = filtered_df.iloc[st.session_state.tour_step]
-        map_center = [current_battle_row['Latitude'], current_battle_row['Longitude']]
-        zoom_start = 7
-    else:
-        # Otherwise, center on the average of all filtered points
-        map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
-        zoom_start = 5 if len(filtered_df['War'].unique()) == 1 else 2
+    map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
+    zoom_start = 5 if len(filtered_df['War'].unique()) == 1 and not st.session_state.tour_active else 2
 else:
     map_center = [20, 0]
     zoom_start = 2
@@ -157,6 +150,15 @@ else:
 
 # Create the map object with the correct, dynamically determined center
 m = folium.Map(location=map_center, zoom_start=zoom_start, tiles='CartoDB Positron')
+
+# *** NEW: If in a tour, create a bounding box to force the map to center and zoom ***
+if st.session_state.tour_active and not filtered_df.empty:
+    current_battle_row = filtered_df.iloc[st.session_state.tour_step]
+    # Create a small bounding box around the point to force the zoom
+    sw = [current_battle_row['Latitude'] - 0.5, current_battle_row['Longitude'] - 0.5]
+    ne = [current_battle_row['Latitude'] + 0.5, current_battle_row['Longitude'] + 0.5]
+    m.fit_bounds([sw, ne])
+
 
 # Add all markers to the map object
 if not filtered_df.empty:
