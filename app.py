@@ -94,27 +94,28 @@ if not filtered_df.empty:
         # Get the icon for the battle type, or use the default
         icon_name = icon_map.get(row['Battle_Type'], default_icon)
         
-        # Build the rich HTML for the popup
+        # Build the rich HTML for the popup, now with more compact styling
         popup_html = f"""
-        <div style="width: 280px;">
-            <h4>{row['Battle']} ({row['Year']})</h4>
-            <p><strong>War:</strong> {row['War']}</p>
-            <p><strong>Type:</strong> {row['Battle_Type']}</p>
-            <hr>
-            <p><em>{row['Description']}</em></p>
-            <hr>
-            <p><strong>Belligerents:</strong><br>{row['Belligerents_A']} vs. {row['Belligerents_B']}</p>
-            <p><strong>Commanders:</strong><br>{row['Commanders_A']} vs. {row['Commanders_B']}</p>
-            <p><strong>Result:</strong> {row['Result']}</p>
-            <a href="{row['Wiki_URL']}" target="_blank">Learn More on Wikipedia</a>
+        <div style="width: 250px; font-size: 13px;">
+            <h4 style="margin-bottom:5px; font-weight:bold;">{row['Battle']} ({row['Year']})</h4>
+            <p style="margin:2px 0;"><strong>War:</strong> {row['War']}</p>
+            <p style="margin:2px 0;"><strong>Type:</strong> {row['Battle_Type']}</p>
+            <hr style="margin:5px 0;">
+            <p style="margin:2px 0;"><em>{row['Description']}</em></p>
+            <hr style="margin:5px 0;">
+            <p style="margin:2px 0;"><strong>Belligerents:</strong><br>{row['Belligerents_A']} vs. {row['Belligerents_B']}</p>
+            <p style="margin:2px 0;"><strong>Commanders:</strong><br>{row['Commanders_A']} vs. {row['Commanders_B']}</p>
+            <p style="margin:2px 0;"><strong>Result:</strong> {row['Result']}</p>
+            <a href="{row['Wiki_URL']}" target="_blank" rel="noopener noreferrer">Learn More on Wikipedia</a>
         </div>
         """
         
+        # The tooltip on hover remains concise
         tooltip_text = f"{row['Battle']} ({row['Year']})"
 
         folium.Marker(
             location=[row['Latitude'], row['Longitude']],
-            popup=folium.Popup(popup_html, max_width=300),
+            popup=folium.Popup(popup_html, max_width=270), # Adjusted max_width
             tooltip=tooltip_text,
             icon=folium.Icon(color='darkred', icon=icon_name, prefix='fa')
         ).add_to(m)
