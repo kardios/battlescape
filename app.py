@@ -138,28 +138,25 @@ icon_map = {
 }
 default_icon = 'crosshairs'
 
-# Define default map center and parameters for st_folium
-map_view_center = None
-map_view_zoom = None
-
+# Determine the correct map center and zoom BEFORE creating the map object
 if not filtered_df.empty:
-    # Set the initial map center to the average of all points in the current view
-    initial_map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
-    initial_zoom = 5 if len(filtered_df['War'].unique()) == 1 else 2
-    
-    # If in a tour, override the view parameters to center on the current step
     if st.session_state.tour_active:
+        # If tour is active, center on the current battle
         current_battle_row = filtered_df.iloc[st.session_state.tour_step]
-        map_view_center = [current_battle_row['Latitude'], current_battle_row['Longitude']]
-        map_view_zoom = 7 # Zoom in close for tour steps
+        map_center = [current_battle_row['Latitude'], current_battle_row['Longitude']]
+        zoom_start = 7
+    else:
+        # Otherwise, center on the average of all filtered points
+        map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
+        zoom_start = 5 if len(filtered_df['War'].unique()) == 1 else 2
 else:
-    initial_map_center = [20, 0]
-    initial_zoom = 2
+    map_center = [20, 0]
+    zoom_start = 2
     if not st.session_state.tour_active:
         st.warning("No battles found for the selected filters.")
 
-# Create the base map object
-m = folium.Map(location=initial_map_center, zoom_start=initial_zoom, tiles='CartoDB Positron')
+# Create the map object with the correct, dynamically determined center
+m = folium.Map(location=map_center, zoom_start=zoom_start, tiles='CartoDB Positron')
 
 # Add all markers to the map object
 if not filtered_df.empty:
@@ -191,12 +188,11 @@ if not filtered_df.empty:
             icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa')
         ).add_to(m)
 
-# Display the map using st_folium, passing the dynamic center and zoom
+# Use a dynamic key to ensure the map component updates correctly
+map_key = f"{st.session_state.selected_war}-{st.session_state.tour_active}-{st.session_state.tour_step}"
 st_folium(
     m, 
-    center=map_view_center, 
-    zoom=map_view_zoom, 
-    key="battlescape_map", 
+    key=map_key,
     width=1200, 
     height=800
 )
