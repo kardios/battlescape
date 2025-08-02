@@ -138,23 +138,30 @@ icon_map = {
 }
 default_icon = 'crosshairs'
 
+# Define default map center and parameters for st_folium
+map_view_center = None
+map_view_zoom = None
+
 if not filtered_df.empty:
-    # *** FIX: Center map on the current battle during a tour ***
+    # Set the initial map center to the average of all points in the current view
+    initial_map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
+    initial_zoom = 5 if len(filtered_df['War'].unique()) == 1 else 2
+    
+    # If in a tour, override the view parameters to center on the current step
     if st.session_state.tour_active:
         current_battle_row = filtered_df.iloc[st.session_state.tour_step]
-        map_center = [current_battle_row['Latitude'], current_battle_row['Longitude']]
-        zoom_start = 7 # Zoom in close for tour steps
-    else:
-        map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
-        zoom_start = 5 if len(filtered_df['War'].unique()) == 1 else 2
+        map_view_center = [current_battle_row['Latitude'], current_battle_row['Longitude']]
+        map_view_zoom = 7 # Zoom in close for tour steps
 else:
-    map_center = [20, 0]
-    zoom_start = 2
+    initial_map_center = [20, 0]
+    initial_zoom = 2
     if not st.session_state.tour_active:
         st.warning("No battles found for the selected filters.")
 
-m = folium.Map(location=map_center, zoom_start=zoom_start, tiles='CartoDB Positron')
+# Create the base map object
+m = folium.Map(location=initial_map_center, zoom_start=initial_zoom, tiles='CartoDB Positron')
 
+# Add all markers to the map object
 if not filtered_df.empty:
     for index, row in filtered_df.iterrows():
         icon_name = icon_map.get(row['Battle_Type'], default_icon)
@@ -184,5 +191,12 @@ if not filtered_df.empty:
             icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa')
         ).add_to(m)
 
-map_key = f"{st.session_state.selected_war}-{st.session_state.tour_active}-{st.session_state.tour_step}"
-st_folium(m, key=map_key, width=1200, height=800)
+# Display the map using st_folium, passing the dynamic center and zoom
+st_folium(
+    m, 
+    center=map_view_center, 
+    zoom=map_view_zoom, 
+    key="battlescape_map", 
+    width=1200, 
+    height=800
+)
