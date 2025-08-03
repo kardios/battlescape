@@ -46,30 +46,14 @@ if df.empty:
     st.warning("Could not load battle data. Please ensure the Google Sheet is correctly set up and shared.")
     st.stop()
 
-# --- Session State Initialization ---
-if 'tour_active' not in st.session_state:
-    st.session_state.tour_active = False
-if 'tour_step' not in st.session_state:
-    st.session_state.tour_step = 0
-if 'selected_war' not in st.session_state:
-    st.session_state.selected_war = "All Wars"
-
-
 # --- Sidebar UI ---
 st.sidebar.header("Filter Battles")
 
 war_list = ['All Wars'] + sorted(df['War'].unique())
 selected_war = st.sidebar.selectbox(
     'Select a War:', 
-    war_list,
-    index=war_list.index(st.session_state.selected_war) # Persist selection across reruns
+    war_list
 )
-
-# If selection changes, reset the tour state
-if selected_war != st.session_state.selected_war:
-    st.session_state.selected_war = selected_war
-    st.session_state.tour_active = False
-    st.session_state.tour_step = 0
 
 min_year = int(df['Year'].min())
 max_year = int(df['Year'].max())
@@ -77,59 +61,19 @@ selected_years = st.sidebar.slider(
     'Select a Year Range:',
     min_value=min_year,
     max_value=max_year,
-    value=(min_year, max_year),
-    disabled=st.session_state.tour_active # Disable slider during tour
+    value=(min_year, max_year)
 )
 
-# --- Tour Activation and Controls ---
-st.sidebar.markdown("---")
-if st.session_state.selected_war != "All Wars":
-    if not st.session_state.tour_active:
-        if st.sidebar.button("Start Guided Tour", use_container_width=True):
-            st.session_state.tour_active = True
-            st.session_state.tour_step = 0
-            st.rerun()
-    else: # If tour is active, show controls
-        tour_df = df[df['War'] == st.session_state.selected_war].sort_values(by='Year').reset_index(drop=True)
-        num_battles = len(tour_df)
-        current_battle = tour_df.iloc[st.session_state.tour_step]
-        
-        st.sidebar.header("Tour Controls")
-        st.sidebar.subheader(f"Step {st.session_state.tour_step + 1} of {num_battles}")
-        st.sidebar.markdown(f"**{current_battle['Battle']} ({current_battle['Year']})**")
-        st.sidebar.caption(current_battle['Description'])
-
-        col1, col2 = st.sidebar.columns(2)
-        if col1.button("Previous", use_container_width=True):
-            if st.session_state.tour_step > 0:
-                st.session_state.tour_step -= 1
-                st.rerun()
-        
-        if col2.button("Next", use_container_width=True):
-            if st.session_state.tour_step < num_battles - 1:
-                st.session_state.tour_step += 1
-                st.rerun()
-        
-        if st.sidebar.button("Stop Tour", use_container_width=True):
-            st.session_state.tour_active = False
-            st.session_state.tour_step = 0
-            st.rerun()
-
-
 # --- Data Filtering Logic ---
-current_battle_id = None
-if st.session_state.tour_active:
-    filtered_df = df[df['War'] == st.session_state.selected_war].sort_values(by='Year').reset_index(drop=True)
-    current_battle_id = filtered_df.iloc[st.session_state.tour_step]['Battle']
+if selected_war == 'All Wars':
+    filtered_df = df
 else:
-    if st.session_state.selected_war == 'All Wars':
-        filtered_df = df
-    else:
-        filtered_df = df[df['War'] == st.session_state.selected_war]
-    
-    filtered_df = filtered_df[
-        (filtered_df['Year'] >= selected_years[0]) & (filtered_df['Year'] <= selected_years[1])
-    ]
+    filtered_df = df[df['War'] == selected_war]
+
+# Apply the year range filter to the result
+filtered_df = filtered_df[
+    (filtered_df['Year'] >= selected_years[0]) & (filtered_df['Year'] <= selected_years[1])
+]
 
 # --- Map Creation ---
 icon_map = {
@@ -138,33 +82,23 @@ icon_map = {
 }
 default_icon = 'crosshairs'
 
-# Determine the correct map center and zoom BEFORE creating the map object
+# Determine the map center and zoom based on the filtered data
 if not filtered_df.empty:
     map_center = [filtered_df['Latitude'].mean(), filtered_df['Longitude'].mean()]
-    zoom_start = 5 if len(filtered_df['War'].unique()) == 1 and not st.session_state.tour_active else 2
+    zoom_start = 5 if selected_war != 'All Wars' else 2
 else:
     map_center = [20, 0]
     zoom_start = 2
-    if not st.session_state.tour_active:
-        st.warning("No battles found for the selected filters.")
+    st.warning("No battles found for the selected filters.")
 
-# Create the map object with the correct, dynamically determined center
+# Create the map object
 m = folium.Map(location=map_center, zoom_start=zoom_start, tiles='CartoDB Positron')
-
-# *** NEW: If in a tour, create a bounding box to force the map to center and zoom ***
-if st.session_state.tour_active and not filtered_df.empty:
-    current_battle_row = filtered_df.iloc[st.session_state.tour_step]
-    # Create a small bounding box around the point to force the zoom
-    sw = [current_battle_row['Latitude'] - 0.5, current_battle_row['Longitude'] - 0.5]
-    ne = [current_battle_row['Latitude'] + 0.5, current_battle_row['Longitude'] + 0.5]
-    m.fit_bounds([sw, ne])
-
 
 # Add all markers to the map object
 if not filtered_df.empty:
     for index, row in filtered_df.iterrows():
         icon_name = icon_map.get(row['Battle_Type'], default_icon)
-        icon_color = 'green' if row['Battle'] == current_battle_id else 'darkred'
+        icon_color = 'darkred' # All icons are now red
         
         popup_html = f"""
         <div style="width: 250px; font-size: 13px;">
@@ -190,8 +124,8 @@ if not filtered_df.empty:
             icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa')
         ).add_to(m)
 
-# Use a dynamic key to ensure the map component updates correctly
-map_key = f"{st.session_state.selected_war}-{st.session_state.tour_active}-{st.session_state.tour_step}"
+# Use a dynamic key based on filters to ensure the map component updates
+map_key = f"{selected_war}-{selected_years[0]}-{selected_years[1]}"
 st_folium(
     m, 
     key=map_key,
